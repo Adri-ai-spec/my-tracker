@@ -411,6 +411,13 @@
       </div>
       <button class="btn secondary" style="padding:8px 14px;font-size:12px" onclick="exportData()">Export</button>
     </div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">Import Backup</div>
+        <div class="setting-sub">Restore from a backup file</div>
+      </div>
+      <button class="btn secondary" style="padding:8px 14px;font-size:12px" onclick="openImportModal()">Import</button>
+    </div>
     <div class="setting-row" style="border:none">
       <div>
         <div class="setting-label" style="color:var(--danger)">Clear All Data</div>
@@ -586,10 +593,11 @@ function renderToday() {
     logEl.innerHTML = [...log].reverse().map((e, ri) => {
       const i = log.length - 1 - ri;
       return `<div class="log-item">
-        <div>
+        <div style="flex:1">
           <div class="log-name">${e.name}</div>
           <div class="log-macros">${e.cals} cal · ${e.prot}g protein</div>
         </div>
+        <button class="log-del" style="font-size:13px;color:var(--accent2);margin-right:4px" onclick="openEditModal(${i})">✏️</button>
         <button class="log-del" onclick="deleteEntry(${i})">×</button>
       </div>`;
     }).join('');
@@ -970,6 +978,99 @@ window.addEventListener('resize', () => {
     drawChart(sorted, currentChartRange);
   }
 });
+
+// ── EDIT FOOD ENTRY ──
+let editIndex = -1;
+
+function openEditModal(idx) {
+  editIndex = idx;
+  const log = getTodayLog();
+  const entry = log[idx];
+  document.getElementById('editName').value = entry.name;
+  document.getElementById('editCals').value = entry.cals;
+  document.getElementById('editProt').value = entry.prot;
+  document.getElementById('editModal').classList.add('open');
+}
+
+function closeEditModal(e) {
+  if (e.target === document.getElementById('editModal')) {
+    document.getElementById('editModal').classList.remove('open');
+  }
+}
+
+function saveEdit() {
+  if (editIndex < 0) return;
+  const name = document.getElementById('editName').value.trim();
+  const cals = parseInt(document.getElementById('editCals').value) || 0;
+  const prot = parseInt(document.getElementById('editProt').value) || 0;
+  if (!name || !cals) return alert('Please enter a name and calories.');
+  const log = getTodayLog();
+  log[editIndex] = { ...log[editIndex], name, cals, prot };
+  saveTodayLog(log);
+  document.getElementById('editModal').classList.remove('open');
+  editIndex = -1;
+  renderToday();
+}
+
+// ── IMPORT DATA ──
+function openImportModal() {
+  document.getElementById('importModal').classList.add('open');
+}
+
+function closeImportModal(e) {
+  if (e.target === document.getElementById('importModal')) {
+    document.getElementById('importModal').classList.remove('open');
+  }
+}
+
+function importData() {
+  const file = document.getElementById('importFile').files[0];
+  if (!file) return alert('Please select a backup file.');
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.goals) S.set('goals', data.goals);
+      if (data.weights) S.set('weights', data.weights);
+      if (data.favorites) S.set('favorites', data.favorites);
+      if (data.recent) S.set('recent', data.recent);
+      if (data.foodLogs) {
+        for (const [k, v] of Object.entries(data.foodLogs)) {
+          S.set(k, v);
+        }
+      }
+      document.getElementById('importModal').classList.remove('open');
+      alert('Backup restored successfully!');
+      renderToday();
+    } catch(err) {
+      alert('Error reading backup file. Please make sure it is a valid backup.');
+    }
+  };
+  reader.readAsText(file);
+}
 </script>
+
+<!-- EDIT FOOD MODAL -->
+<div class="modal-overlay" id="editModal" onclick="closeEditModal(event)">
+  <div class="modal">
+    <div class="modal-title">Edit Food Entry</div>
+    <input type="text" id="editName" placeholder="Food name" style="margin-bottom:10px">
+    <div class="modal-row">
+      <input type="number" id="editCals" placeholder="Calories" inputmode="numeric">
+      <input type="number" id="editProt" placeholder="Protein (g)" inputmode="numeric">
+    </div>
+    <button class="btn full" style="margin-top:6px" onclick="saveEdit()">Save Changes</button>
+  </div>
+</div>
+
+<!-- IMPORT DATA MODAL -->
+<div class="modal-overlay" id="importModal" onclick="closeImportModal(event)">
+  <div class="modal">
+    <div class="modal-title">Import Backup</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Select a backup JSON file to restore your data. This will merge with existing data.</p>
+    <input type="file" id="importFile" accept=".json" style="color:var(--text);font-size:13px;margin-bottom:14px;width:100%">
+    <button class="btn full" onclick="importData()">Restore Backup</button>
+  </div>
+</div>
 </body>
 </html>
