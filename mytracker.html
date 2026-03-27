@@ -423,7 +423,10 @@
         <div class="setting-label">Import Backup</div>
         <div class="setting-sub">Restore from a backup file</div>
       </div>
-      <button class="btn secondary" style="padding:8px 14px;font-size:12px" onclick="openImportModal()">Import</button>
+      <label class="btn secondary" style="padding:8px 14px;font-size:12px;cursor:pointer">
+        Import
+        <input type="file" accept=".json" style="display:none" onchange="importDataDirect(this)">
+      </label>
     </div>
     <div class="setting-row" style="border:none">
       <div>
