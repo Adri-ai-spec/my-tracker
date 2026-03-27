@@ -632,14 +632,14 @@ function renderFavGrid() {
   el.innerHTML = favs.map((f) => {
     const origIdx = allFavs.indexOf(f);
     return `
-    <div class="quick-item" onclick="addFoodFromQuick('${escQ(f.name)}',${f.cals},${f.prot})">
-      <div>
+    <div class="quick-item" style="position:relative">
+      <div onclick="addFoodFromQuick('${escQ(f.name)}',${f.cals},${f.prot})" style="flex:1;cursor:pointer">
         <div class="quick-name">${f.name}</div>
         <div class="quick-prot">${f.prot}g prot</div>
       </div>
-      <div style="text-align:right">
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <button onclick="event.stopPropagation();deleteFav(${origIdx})" style="background:var(--danger);border:none;color:white;border-radius:6px;padding:2px 7px;font-size:11px;cursor:pointer;line-height:1.4">✕</button>
         <div class="quick-cals">${f.cals}</div>
-        <div style="font-size:10px;color:var(--muted);cursor:pointer" onclick="event.stopPropagation();deleteFav(${origIdx})">✕</div>
       </div>
     </div>`;
   }).join('');
