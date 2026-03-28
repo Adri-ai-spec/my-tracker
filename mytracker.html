@@ -472,6 +472,20 @@
 <!-- ══════════════════════════════════════════
      FAVORITE FOOD MODAL
 ════════════════════════════════════════════ -->
+
+<!-- EDIT FOOD MODAL -->
+<div class="modal-overlay" id="editModal" onclick="closeEditModal(event)">
+  <div class="modal">
+    <div class="modal-title" id="editModalTitle">Edit Food Entry</div>
+    <input type="text" id="editName" placeholder="Food name" style="margin-bottom:10px">
+    <div class="modal-row">
+      <input type="number" id="editCals" placeholder="Calories" inputmode="numeric">
+      <input type="number" id="editProt" placeholder="Protein (g)" inputmode="numeric">
+    </div>
+    <button class="btn full" style="margin-top:6px" onclick="saveEdit()">Save Changes</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="favModal" onclick="closeFavModal(event)">
   <div class="modal">
     <div class="modal-title">Add Favorite Food</div>
@@ -807,6 +821,61 @@ function deleteWeekEntry(key, idx) {
   renderWeek();
 }
 
+
+// ── EDIT TODAY'S FOOD ENTRY ──
+let editIndex = -1;
+
+function openEditModal(idx) {
+  editIndex = idx;
+  const log = getTodayLog();
+  const entry = log[idx];
+  document.getElementById('editName').value = entry.name;
+  document.getElementById('editCals').value = entry.cals;
+  document.getElementById('editProt').value = entry.prot;
+  document.getElementById('editModal').dataset.mode = 'today';
+  document.getElementById('editModalTitle').textContent = 'Edit Food Entry';
+  document.getElementById('editModal').classList.add('open');
+}
+
+function closeEditModal(e) {
+  if (e.target === document.getElementById('editModal')) {
+    document.getElementById('editModal').classList.remove('open');
+  }
+}
+
+function saveEdit() {
+  const name = document.getElementById('editName').value.trim();
+  const cals = parseInt(document.getElementById('editCals').value) || 0;
+  const prot = parseInt(document.getElementById('editProt').value) || 0;
+  if (!name || !cals) return alert('Please enter a name and calories.');
+  const mode = document.getElementById('editModal').dataset.mode;
+
+  if (mode === 'week') {
+    const log = S.get('log_' + weekEditKey) || [];
+    log[weekEditIdx] = { ...log[weekEditIdx], name, cals, prot };
+    S.set('log_' + weekEditKey, log);
+    document.getElementById('editModal').classList.remove('open');
+    document.getElementById('editModal').dataset.mode = '';
+    renderWeek();
+  } else if (mode === 'weekadd') {
+    const log = S.get('log_' + weekEditKey) || [];
+    log.push({ name, cals, prot, time: Date.now() });
+    S.set('log_' + weekEditKey, log);
+    addToRecent({ name, cals, prot });
+    document.getElementById('editModal').classList.remove('open');
+    document.getElementById('editModal').dataset.mode = '';
+    renderWeek();
+  } else {
+    if (editIndex < 0) return;
+    const log = getTodayLog();
+    log[editIndex] = { ...log[editIndex], name, cals, prot };
+    saveTodayLog(log);
+    document.getElementById('editModal').classList.remove('open');
+    editIndex = -1;
+    renderToday();
+  }
+}
+
 let weekEditKey = null;
 let weekEditIdx = -1;
 
@@ -1128,6 +1197,37 @@ function exportData() {
   URL.revokeObjectURL(url);
 }
 
+
+function importDataDirect(input) {
+  const file = input.files[0];
+  if (!file) { alert('No file selected.'); return; }
+  const reader = new FileReader();
+  reader.onerror = function() { alert('Could not read file. Please try again.'); };
+  reader.onload = function(e) {
+    try {
+      const text = e.target.result;
+      if (!text || text.trim() === '') { alert('File appears to be empty.'); return; }
+      const data = JSON.parse(text);
+      let imported = 0;
+      if (data.goals) { S.set('goals', data.goals); imported++; }
+      if (data.weights && Object.keys(data.weights).length > 0) { S.set('weights', data.weights); imported++; }
+      if (data.favorites && data.favorites.length > 0) { S.set('favorites', data.favorites); imported++; }
+      if (data.recent && data.recent.length > 0) { S.set('recent', data.recent); imported++; }
+      if (data.foodLogs) {
+        for (const [k, v] of Object.entries(data.foodLogs)) {
+          S.set(k, v); imported++;
+        }
+      }
+      if (imported === 0) { alert('No data found in backup file. Make sure you selected the correct mytracker backup file.'); return; }
+      alert('✅ Backup restored! Found ' + imported + ' data items. App will now reload.');
+      setTimeout(function() { window.location.reload(); }, 500);
+    } catch(err) {
+      alert('Error: Could not read backup file.\nDetails: ' + err.message + '\n\nMake sure you selected the mytracker-backup .json file.');
+    }
+  };
+  reader.readAsText(file);
+}
+
 function clearAll() {
   if (confirm('Delete ALL data? This cannot be undone.')) {
     localStorage.clear();
@@ -1139,6 +1239,7 @@ function clearAll() {
 // ══════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════
+
 renderToday();
 window.addEventListener('resize', () => {
   if (document.getElementById('screen-weight').classList.contains('active')) {
