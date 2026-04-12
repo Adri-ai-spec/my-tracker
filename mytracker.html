@@ -250,6 +250,19 @@
     </div>
   </div>
 
+  <!-- Exercise tracker -->
+  <div class="card" style="padding:12px 16px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:13px;font-weight:600">Move Today</div>
+        <div style="font-size:11px;color:var(--muted)" id="exerciseStatus">Not logged yet</div>
+      </div>
+      <button id="exerciseBtn" onclick="toggleExercise()" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 16px;color:var(--text);font-family:var(--font-display);font-size:13px;font-weight:600;cursor:pointer">
+        🏃 Log Move
+      </button>
+    </div>
+  </div>
+
   <!-- Progress bars -->
   <div class="card">
     <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:4px">
@@ -369,8 +382,7 @@
 
   <!-- Chart tabs -->
   <div class="chart-tabs">
-    <button class="chart-tab active" onclick="setChartRange('7d',this)">Week</button>
-    <button class="chart-tab" onclick="setChartRange('30d',this)">Month</button>
+    <button class="chart-tab active" onclick="setChartRange('30d',this)">Month</button>
     <button class="chart-tab" onclick="setChartRange('90d',this)">3 Mo</button>
     <button class="chart-tab" onclick="setChartRange('all',this)">All Time</button>
   </div>
@@ -627,6 +639,8 @@ function renderToday() {
     }).join('');
   }
 
+  // Exercise button
+  renderExerciseBtn();
   // Favorites
   renderFavGrid();
   renderRecentGrid();
@@ -822,6 +836,49 @@ function deleteWeekEntry(key, idx) {
 }
 
 
+
+// ── EXERCISE TRACKING ──
+function getExerciseLog() {
+  return S.get('exercise') || {};
+}
+
+function toggleExercise() {
+  const log = getExerciseLog();
+  const today = todayKey();
+  if (log[today]) {
+    // Already logged - toggle off
+    delete log[today];
+  } else {
+    log[today] = true;
+  }
+  S.set('exercise', log);
+  renderExerciseBtn();
+}
+
+function renderExerciseBtn() {
+  const log = getExerciseLog();
+  const today = todayKey();
+  const exercised = log[today];
+  const btn = document.getElementById('exerciseBtn');
+  const status = document.getElementById('exerciseStatus');
+  if (!btn || !status) return;
+  if (exercised) {
+    btn.style.background = 'var(--accent)';
+    btn.style.color = '#0a0a0f';
+    btn.style.borderColor = 'var(--accent)';
+    btn.textContent = '✅ Moved!';
+    status.textContent = 'Great work today!';
+    status.style.color = 'var(--accent)';
+  } else {
+    btn.style.background = 'var(--surface2)';
+    btn.style.color = 'var(--text)';
+    btn.style.borderColor = 'var(--border)';
+    btn.textContent = '🏃 Log Move';
+    status.textContent = 'Not logged yet';
+    status.style.color = 'var(--muted)';
+  }
+}
+
 // ── EDIT TODAY'S FOOD ENTRY ──
 let editIndex = -1;
 
@@ -905,7 +962,7 @@ function openWeekAddModal(key) {
 // ══════════════════════════════════════════
 // WEIGHT
 // ══════════════════════════════════════════
-let currentChartRange = '7d';
+let currentChartRange = '30d';
 
 function logWeight() {
   const val = parseFloat(document.getElementById('weightInput').value);
@@ -1097,6 +1154,42 @@ function drawChart(allData, range) {
   ctx.fillStyle = '#ffb87e'; ctx.fillRect(pad.left + 70, pad.top - 14, 10, 3);
   ctx.fillText('Trend', pad.left + 84, pad.top - 10);
 
+  // ── EXERCISE DOTS (green dots at bottom for every exercise day in range) ──
+  const exerciseLog = S.get('exercise') || {};
+  const exerciseDays = Object.keys(exerciseLog).filter(d => exerciseLog[d]).sort();
+  if (exerciseDays.length > 0 && data.length >= 2) {
+    const firstDate = new Date(data[0].date + 'T00:00:00');
+    const lastDate = new Date(data[data.length-1].date + 'T00:00:00');
+    const totalMs = lastDate - firstDate;
+
+    // Draw a dot for every exercise day within the chart date range
+    exerciseDays.forEach(day => {
+      const dayDate = new Date(day + 'T00:00:00');
+      if (dayDate < firstDate || dayDate > lastDate) return;
+      // Position by date proportion across chart width
+      const proportion = (dayDate - firstDate) / totalMs;
+      const x = pad.left + proportion * cW;
+      const y = pad.top + cH - 4;
+      ctx.beginPath();
+      ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#00ff88';
+      ctx.fill();
+      ctx.strokeStyle = '#0a0a0f';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    });
+
+    // Legend
+    ctx.beginPath();
+    ctx.arc(pad.left + 200, pad.top - 10, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#00ff88';
+    ctx.fill();
+    ctx.fillStyle = '#00ff88';
+    ctx.font = '10px DM Mono';
+    ctx.textAlign = 'left';
+    ctx.fillText('Move', pad.left + 208, pad.top - 6);
+  }
+
   // ── WEEKLY CALORIE OVERLAY (right Y-axis) ──
   const weekCals = getWeeklyCalories();
   const firstDate = data[0].date;
@@ -1184,6 +1277,7 @@ function exportData() {
     weights: getWeightLog(),
     favorites: getFavorites(),
     recent: S.get('recent') || [],
+    exercise: S.get('exercise') || {},
   };
   const logs = {};
   for (let k of Object.keys(localStorage)) {
@@ -1213,6 +1307,7 @@ function importDataDirect(input) {
       if (data.weights && Object.keys(data.weights).length > 0) { S.set('weights', data.weights); imported++; }
       if (data.favorites && data.favorites.length > 0) { S.set('favorites', data.favorites); imported++; }
       if (data.recent && data.recent.length > 0) { S.set('recent', data.recent); imported++; }
+      if (data.exercise) { S.set('exercise', data.exercise); imported++; }
       if (data.foodLogs) {
         for (const [k, v] of Object.entries(data.foodLogs)) {
           S.set(k, v); imported++;
@@ -1239,6 +1334,8 @@ function clearAll() {
 // ══════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════
+
+
 
 renderToday();
 window.addEventListener('resize', () => {
